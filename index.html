@@ -33,7 +33,8 @@
   .stat.due-on{border-color:#fbbf24;background:var(--amberbg)}
   .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
   input[type=text],select,input[type=date],textarea{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff}
-  input[type=text]{flex:1;min-width:150px}
+  input[type=text]{min-width:150px}
+  #q{flex:1}
   textarea{width:100%;resize:vertical}
   .count{font-size:11.5px;color:var(--faint);margin:4px 0 8px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
@@ -60,13 +61,13 @@
   .hint.saved{color:var(--indigo)} .hint.err{color:var(--red)}
   .lbl{font-size:11.5px;color:var(--mut)}
   .foot{font-size:11px;color:var(--faint);margin-top:22px;line-height:1.6}
-  dialog{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:440px;width:92%}
+  dialog{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:460px;width:92%}
   dialog::backdrop{background:rgba(15,23,42,.4)}
   dialog h2{font-size:16px;margin-bottom:6px}
-  dialog p{font-size:12.5px;color:var(--mut);line-height:1.55;margin-bottom:10px}
+  dialog p{font-size:12.5px;color:var(--mut);line-height:1.55;margin-bottom:8px}
   dialog input{width:100%}
   .empty{text-align:center;color:var(--faint);font-size:13px;padding:36px 0}
-  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:92%;text-align:center}
   .toast.show{opacity:1}
 </style>
 </head>
@@ -75,9 +76,10 @@
   <div class="row between">
     <div>
       <h1>EOI Tracker</h1>
-      <div class="sub">Australian RMO campaign · Dr Akshay Shibu · <span id="total"></span> contacts</div>
+      <div class="sub">Australian RMO campaign · Dr Akshay Shibu · <span id="total"></span> contacts<span id="syncStat"></span></div>
     </div>
     <div class="row">
+      <button id="syncBtn">Sync</button>
       <button id="settingsBtn">⚙ Settings</button>
       <button id="backupBtn">Backup</button>
     </div>
@@ -97,20 +99,28 @@
   <div id="list"></div>
 
   <div class="foot">
-    Data is stored only in this browser on this device — use <b>Backup</b> regularly (a cleared browser wipes it).
+    Data lives in this browser; with cloud sync set up in Settings it also syncs across your devices via your own Supabase project (last save wins — don't edit on two devices at the same moment). Still tap <b>Backup</b> weekly.
     Contacts compiled from IMG Career Support lists; verify an address before assuming silence means no.
-    AI-personalize needs an Anthropic API key (Settings) and small credit; everything else is free and offline.
+    AI features need your Anthropic API key (Settings); everything else is free and works offline.
   </div>
 </div>
 
 <dialog id="settingsDlg">
   <h2>Settings</h2>
-  <p><b>Anthropic API key</b> — only needed for the AI-personalize button. Create one at console.anthropic.com (separate from your Claude subscription; needs a small credit balance — each rewrite costs a fraction of a cent). The key is stored only in this browser.</p>
+  <p><b>Anthropic API key</b> — only for the AI buttons. Create at console.anthropic.com (separate from your Claude subscription; needs small credit). Stored only in this browser.</p>
   <input type="text" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off">
-  <p style="margin-top:10px"><b>Restore from backup</b> — load a previously exported JSON backup, or import the CSV exported from the Claude artifact version to carry your progress over.</p>
+  <p style="margin-top:12px"><b>Cloud sync (Supabase)</b> — free account at supabase.com → New project → SQL Editor → run the setup SQL (button below copies it) → Project Settings → API → copy Project URL and anon key here. Use the <b>same sync code</b> on every device.</p>
+  <input type="text" id="supaUrlInput" placeholder="https://xxxx.supabase.co" autocomplete="off">
+  <input type="text" id="supaKeyInput" placeholder="anon public key (eyJ…)" autocomplete="off" style="margin-top:6px">
+  <div class="row" style="margin-top:6px">
+    <input type="text" id="syncIdInput" placeholder="sync code (same on all devices)" autocomplete="off" style="flex:1">
+    <button id="genSync">Generate</button>
+    <button id="copySql">Copy setup SQL</button>
+  </div>
+  <p style="margin-top:12px"><b>Restore</b> — load a JSON backup, or import the CSV exported from the Claude artifact version to carry progress over.</p>
   <div class="row">
     <button id="importJsonBtn">Import JSON backup</button>
-    <button id="importCsvBtn">Import artifact CSV</button>
+    <button id="importCsvBtn">Import CSV</button>
     <input type="file" id="fileInput" hidden>
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -126,15 +136,19 @@
 // ---------- data ----------
 const RAW=[
 ["ACT","Canberra Health Services","Melinda Fors","Medical Workforce","CHSNCH.medical.recruitment@act.gov.au","Med"],
-["ACT","Canberra Health Services","Medical Administration","Senior Director / Director","CHSTCHMosu@act.gov.au","Med"],
+["ACT","Canberra Health Services","Melanie Taylor / Grace Johnson","Medical Administration","CHSTCHMosu@act.gov.au","Med"],
+["ACT","Canberra Health Services","Samuel Scanlan","Clinical Director, ED","Samuel.Scanlan@act.gov.au","Med"],
 ["NT","NT Health (all sites)","RMO Recruitment","JMO Workforce","RDHJMOWorkforce.DoH@nt.gov.au","High"],
 ["NT","Royal Darwin Hospital","JMO Workforce","RMO Recruitment","jmoworkforcerdh.health@nt.gov.au","High"],
+["NT","Royal Darwin Hospital","Dr Emma Spencer","Division of Medicine Recruitment","DivMedRecruitment.THS@nt.gov.au","High"],
+["NT","Alice Springs Hospital","Medical Recruitment","Recruitment (registrar/RMO enquiries)","MedicalRecruitmentASH@nt.gov.au","High"],
 ["NSW","Westmead / Blacktown / Auburn (WSLHD)","Medical Workforce","Recruitment","WSLHD-BMDHMedicalWorkforce@health.nsw.gov.au","Low"],
 ["NSW","Nepean Blue Mountains LHD","Medical Workforce","Recruitment","nbmlhd-recruitment@health.nsw.gov.au","Med"],
 ["NSW","Northern NSW LHD (Lismore, Tweed etc.)","Candidate Experience Team","Recruitment","NNSWLHD-CandidateExperienceTeam@health.nsw.gov.au","High"],
 ["NSW","SESLHD (St George, Sutherland etc.)","Medical Workforce Unit","Recruitment","SESLHD-MedicalWorkforceUnitSTG@health.nsw.gov.au","Low"],
 ["NSW","SWSLHD (Liverpool, Campbelltown etc.)","Employment Services","Recruitment","SWSLHD-ESU@health.nsw.gov.au","Med"],
 ["NSW","Central Coast LHD (Gosford, Wyong)","Medical Workforce","Recruitment","CCLHD-Recruitment@health.nsw.gov.au","Med"],
+["NSW","Illawarra Shoalhaven LHD","Mark Bassett","District Director","Mark.Bassett@health.nsw.gov.au","Low"],
 ["NSW","John Hunter Hospital","Sally Jordan","Senior Medical Recruitment","Sally.Jordan@health.nsw.gov.au","Med"],
 ["NSW","Lismore Base Hospital","Samantha Corcoran","JMO Recruitment","NNSWLHD-LIS-JMORecruitment@health.nsw.gov.au","High"],
 ["NSW","Maitland Hospital","Linda Venables","JMO Manager","Linda.Venables@health.nsw.gov.au","Med"],
@@ -142,30 +156,40 @@ const RAW=[
 ["NSW","Manning Base Hospital","Jess Glover","Senior Medical Recruitment","jessica.glover@health.nsw.gov.au","High"],
 ["NSW","Manning Base Hospital","Dr Berenika Turchin","Clinical Director, ED","Berenika.turchin@health.nsw.gov.au","High"],
 ["NSW","Northern Beaches Hospital","JMO Recruitment","Medical Workforce","JMOrecruitment@healthscope.com.au","Med"],
+["NSW","Northern Beaches Hospital","JMO Unit","Medical Workforce (alt address)","jmounitmail@healthscope.com.au","Med"],
 ["NSW","Orange Hospital","Sarah Sharp","JMO Manager","Sarah.Sharp@health.nsw.gov.au","High"],
 ["NSW","Orange Hospital","Dr Danielle Klingberg","Dir. Prevocational Training","Danielle.Klingberg1@health.nsw.gov.au","High"],
 ["NSW","Port Macquarie Hospital","Daniel Williams","JMO Manager","Daniel.Williams1@health.nsw.gov.au","High"],
-["NSW","Prince of Wales Hospital","JMO Unit","Medical Workforce","SESLD-JMOPOW@health.nsw.gov.au","Low"],
+["NSW","Prince of Wales Hospital","Cynthia Bacalhau","JMO Medical Workforce Unit","SESLD-JMOPOW@health.nsw.gov.au","Low"],
 ["NSW","Ryde Hospital","Dr Irene Ho","Dir. Prevocational Training","Irene.Ho@health.nsw.gov.au","Med"],
 ["NSW","Shoalhaven Hospital","Dr Adrian Taylor","Dir. Prevocational Training","Adrian.Taylor@health.nsw.gov.au","High"],
 ["NSW","Sutherland Hospital","Margaret Swan","Workforce Officer","Margaret.Swan@health.nsw.gov.au","Med"],
+["NSW","Sutherland Hospital","Donna Sampson","Workforce Officer","donna.sampson@health.nsw.gov.au","Med"],
+["NSW","Sutherland Hospital","Deborah Molloy","Workforce Officer","deborah.molloy@health.nsw.gov.au","Med"],
+["NSW","St George Hospital","Michele Cawley","Workforce Officer","michele.cawley@health.nsw.gov.au","Med"],
 ["NSW","Tamworth Hospital","Dr Sarah Jones","Dir. Prevocational Training","Sarah.Jones5@health.nsw.gov.au","High"],
+["NSW","Tweed Hospital","Dr Matthew Raine","Dir. Prevocational Training","Matthew.Raine1@health.nsw.gov.au","High"],
 ["NSW","Tweed Hospital","JMO Manager","Medical Workforce","nnswlhd-twe-jmomanager@health.nsw.gov.au","High"],
 ["NSW","Wagga Wagga Base Hospital","Dr Christopher Mumme","Dir. Prevocational Training","Christopher.Mumme@health.nsw.gov.au","High"],
 ["NSW","Armidale Hospital","Rhiannon Pankhurst","JMO Manager","HNELHD-armidalemedicaladmin@health.nsw.gov.au","High"],
 ["NSW","Armidale Hospital","Dr Mark Kelly","Dir. Prevocational Training","Mark.Kelly1@health.nsw.gov.au","High"],
 ["QLD","Cairns & Hinterland HHS","RMO Recruitment","Recruitment Officer","CHHHS_RMO_Recruitment@health.qld.gov.au","High"],
+["QLD","Cairns & Hinterland HHS","Recruitment Cairns","Recruitment Officer (alt address)","Recruitment.Cairns@health.qld.gov.au","High"],
 ["QLD","Cairns & Hinterland HHS","Dr Tjaart Grobbelaar","Dir. Rural Medical Service","tjaart.grobbelaar@health.qld.gov.au","High"],
 ["QLD","Innisfail Hospital","Dr Thomas Coombs","Dir. Rural Medical Service","thomas.coombs@health.qld.gov.au","High"],
+["QLD","Health Workforce QLD (rural)","Caro Finlay / Harleen Gill","Regional Coordinators","hws@healthworkforce.com.au","High"],
 ["QLD","Central QLD HHS (Rockhampton etc.)","RMO Enquiries","JMO Recruitment","CQHHS_JMORecruit@health.qld.gov.au","High"],
+["QLD","Central QLD HHS","SRMO Enquiries","SMO Recruitment","CQHHS_SMORecruit@health.qld.gov.au","Med"],
 ["QLD","Central West HHS (Longreach etc.)","Medical Workforce","RMO & Registrar","cw-workforcemedical@health.qld.gov.au","High"],
 ["QLD","Central West HHS","Dr John Douyere","Dir. Clinical Training","John.Douyere@health.qld.gov.au","High"],
 ["QLD","Central West HHS","Felicity Haydock","Workforce Manager","felicity.haydock@health.qld.gov.au","High"],
 ["QLD","Central Highlands","Dr Nikki Harch","Dir. Medical Services","nichole.harch@health.qld.gov.au","High"],
+["QLD","Children's Health Queensland","Junior Medical Workforce","Recruitment","CHQ_JMWS@health.qld.gov.au","Med"],
 ["QLD","Darling Downs HHS (rural)","Rural Medical","RMO Recruitment","DDHHS-Rural-Medical@health.qld.gov.au","High"],
 ["QLD","Toowoomba Hospital","Junior Medical","RMO Recruitment","DDHHS-JNR-MEDICAL@health.qld.gov.au","High"],
 ["QLD","Darling Downs HHS","Dr Liam Weber","Dir. Medical Services","Liam.Weber@health.qld.gov.au","High"],
 ["QLD","Gold Coast HHS","Medical Services Unit","RMO & Registrar","GCHmedservicesunit@health.qld.gov.au","Med"],
+["QLD","Gold Coast HHS (Mental Health)","Jodie Frankhouser","Mental Health RMO Recruitment","Jodie.frankhouser@health.qld.gov.au","Med"],
 ["QLD","Greenslopes Private (Ramsay)","JMO Admin","RMO & Registrar","JMOAdmin.GPH@ramsayhealth.com.au","Med"],
 ["QLD","Mackay HHS","Medical Workforce","RMO & Registrar","mackaymedicalworkforce@health.qld.gov.au","High"],
 ["QLD","Mater Brisbane","Medical Workforce","Recruitment","medworkforce@mater.org.au","Med"],
@@ -177,7 +201,7 @@ const RAW=[
 ["QLD","Princess Alexandra Hospital","Junior Medical Workforce","JHO/SHO Recruitment","PAH_JnrMedicalWorkforce@health.qld.gov.au","Low"],
 ["QLD","QEII Hospital","Medical Workforce","RMO Recruitment","QEII_MedicalWorkforce@health.qld.gov.au","Med"],
 ["QLD","Redland Hospital","Bayside Medical Workforce","RMO/Registrar","BaysideMedicalWorkforce@health.qld.gov.au","Med"],
-["QLD","Mount Isa (North West HHS)","Medical Workforce Unit","Recruitment","NWHHSMedicalWorkforceUnit@health.qld.gov.au","High"],
+["QLD","Mount Isa (North West HHS)","Sarah Hetherton","Medical Workforce Unit","NWHHSMedicalWorkforceUnit@health.qld.gov.au","High"],
 ["QLD","Mount Isa Hospital","Dr Brianna Smith","Senior Workforce","Brianna.Smith@health.qld.gov.au","High"],
 ["QLD","South West HHS (Charleville, Roma)","Medical Services","RMO Recruitment","swhhs-mms@health.qld.gov.au","High"],
 ["QLD","Charleville Hospital","Dr Deb Smith","Dir. Medical Services","deb.smith3@health.qld.gov.au","High"],
@@ -187,22 +211,37 @@ const RAW=[
 ["QLD","Torres & Cape HHS","Medical Recruitment","Recruitment","tchhs-medicalrecruitment@health.qld.gov.au","High"],
 ["QLD","Cooktown Hospital","Dr Natasha Coventry","Dir. Medical Services","tchhs-dms-east@health.qld.gov.au","High"],
 ["QLD","Townsville HHS","Medical Workforce","Recruitment","TSV-Medworkforce@health.qld.gov.au","High"],
+["QLD","Townsville HHS","JMO Unit","Recruitment (alt address)","TSV-JMO@health.qld.gov.au","High"],
 ["QLD","Ingham Health Service","Dr Selina Porter","Medical Superintendent","selina.porter@health.qld.gov.au","High"],
 ["QLD","West Moreton HHS (Ipswich)","Junior Medical","Medical Workforce","WMJuniorMedical@health.qld.gov.au","Med"],
+["QLD","West Moreton HHS","Medical Education Unit","Education / Recruitment","wmmedicaleducationunit@health.qld.gov.au","Med"],
 ["QLD","Wide Bay HHS","Medical Admin","Recruitment","WBHHS-MedicalAdmin@health.qld.gov.au","High"],
-["QLD","Health Workforce QLD (rural)","Caro Finlay / Harleen Gill","Regional Coordinators","hws@healthworkforce.com.au","High"],
-["SA","Barossa Hills Fleurieu LHN","Jen Field","Medical Education Unit","Health.BHFLHNMedicalEducationUnit@sa.gov.au","High"],
+["SA","Barossa Hills Fleurieu LHN","A/Prof Sharon Morton","Executive Dir. of Medical","Sharon.Morton@sa.gov.au","High"],
 ["SA","Barossa Hills Fleurieu LHN","Dr Peter Stuart","Dir. Clinical Training","Peter.Stuart@sa.gov.au","High"],
-["SA","Eyre & Far North LHN","Kaylee Brown","Medical Education Officer","Kaylee.brown@sa.gov.au","High"],
+["SA","Barossa Hills Fleurieu LHN","Jen Field","Medical Education Unit","Health.BHFLHNMedicalEducationUnit@sa.gov.au","High"],
+["SA","Eyre & Far North LHN","Dr Susan Merrett","Executive Dir. Medical Services","Susan.Merrett@sa.gov.au","High"],
 ["SA","Eyre & Far North LHN","Dr Alison Lydeamore","Dir. Clinical Training","Alison.Lydeamore@sa.gov.au","High"],
+["SA","Eyre & Far North LHN","Kaylee Brown","Medical Education Officer","Kaylee.brown@sa.gov.au","High"],
+["SA","Flinders & Upper North LHN","Dr Lindy Washington","Executive Dir. Medical Services","lindy.washington@sa.gov.au","High"],
+["SA","Flinders & Upper North LHN","Dr Nadeeshani Assiriyage","Dir. Clinical Training","Nadeeshani.Assiriyage@sa.gov.au","High"],
 ["SA","Flinders & Upper North LHN","Ellen Menzies","Medical Education Unit","Health.FUNLHNMedicalEducationUnit@sa.gov.au","High"],
+["SA","Limestone Coast LHN","Dr Sathiaseelan Nair","Dir. Clinical Training","Health.LCLHNMedicalEdcuationUnit@sa.gov.au","High"],
 ["SA","Limestone Coast LHN","Mary Harvey","Medical Education Officer","mary.harvey@sa.gov.au","High"],
-["SA","Riverland Mallee Coorong LHN","Tanya Roesler","Medical Education Officer","tanya.roesler@sa.gov.au","High"],
 ["SA","Riverland Mallee Coorong LHN","Dr Hamish Eske","Dir. Clinical Training","Hamish.Eske@sa.gov.au","High"],
+["SA","Riverland Mallee Coorong LHN","Tanya Roesler","Medical Education Officer","tanya.roesler@sa.gov.au","High"],
+["SA","Riverland Mallee Coorong LHN","Susan Ziersch","Medical Education Officer","susan.ziersch@sa.gov.au","High"],
 ["SA","Northern Adelaide LHN","Dr Kate Wislang","Dir. Clinical Training","Kate.Wislang@sa.gov.au","Med"],
+["SA","Northern Adelaide LHN","Dr Melissa Whalan","Co-Dir. Clinical Training","melissa.whalan@sa.gov.au","Med"],
+["SA","Northern Adelaide LHN","Renee Murphy","Medical Education Officer","Renee.Murphy@sa.gov.au","Med"],
+["SA","Northern Adelaide LHN","Ngarie Kelly","Medical Education Officer","ngarie.kelly@sa.gov.au","Med"],
 ["SA","Northern Adelaide LHN","Jaslyn Cooper","TMO Team Leader","Jaslyn.Cooper@sa.gov.au","Med"],
+["SA","Southern Adelaide LHN","Dr Kirrily Holton","Dir. Clinical Training","Kirrily.Holton@sa.gov.au","Med"],
 ["SA","Southern Adelaide LHN","Cameron Wyers","TMO Regional Manager","cameron.wyers@sa.gov.au","Med"],
+["SA","Southern Adelaide LHN","Jodie Garden","Medical Education Officer","Jodie.Gardner@sa.gov.au","Med"],
+["SA","Southern Adelaide LHN","Sheryl Keegan","Medical Admin & Education","Sheryl.Keegan@sa.gov.au","Med"],
+["SA","Southern Adelaide LHN","Joanne Papageorgiou","Medicine TMO Manager","joanne.papageorgiou@sa.gov.au","Med"],
 ["SA","Central Adelaide LHN","RMO Recruitment","Recruitment","Health.CALHNAUCRecruitment@sa.gov.au","Med"],
+["SA","Central Adelaide LHN","Layla Dungey","TMO Team Leader","Layla.Dungey@sa.gov.au","Med"],
 ["TAS","Royal Hobart Hospital","Marita Eccles","Senior Recruitment Officer","marita.eccles@ths.tas.gov.au","High"],
 ["TAS","Royal Hobart Hospital","Shelley Hampson","Senior Recruitment Officer","shelley.hampson@ths.tas.gov.au","High"],
 ["TAS","Launceston General Hospital","Rebecca Spencer","Recruitment Officer","rebecca.spencer@health.tas.gov.au","High"],
@@ -210,51 +249,86 @@ const RAW=[
 ["TAS","North West Regional Hospital","Sophie Coghlan","Medical Workforce Unit","sophie.coghlan@ths.tas.gov.au","High"],
 ["VIC","Alfred Hospital","Medical Workforce","Recruitment","medicalrecruitment@alfred.org.au","Low"],
 ["VIC","Austin Health","HMO Recruitment","Medical Workforce Unit","hmorecruitment@austin.org.au","Low"],
+["VIC","Austin Health","Medical Workforce","Enquiries","mwuenquiries@austin.org.au","Low"],
+["VIC","Austin Health","Pauline Dib","Medical Education Officer","pauline.dib@austin.org.au","Low"],
 ["VIC","Eastern Health","Tracy Waller","Hiring Manager","docsgoeast@easternhealth.org.au","Med"],
 ["VIC","Royal Melbourne Hospital","DIT Recruitment","Medical Workforce","ditrecruitment@mh.org.au","Low"],
+["VIC","Royal Melbourne Hospital","Doctors in Training Ops","Medical Workforce Unit","rmh-mwu@mh.org.au","Low"],
+["VIC","Royal Melbourne Hospital","Medical Education","Education Unit","rmhMedicalEducation@mh.org.au","Low"],
+["VIC","Mercy Public Hospital","Carolyn Ward","Dir. Medical Workforce","CWard@mercy.com.au","Med"],
 ["VIC","Mercy Public Hospital","JMS Enquiries","Workforce Manager","JMS-Enquiries@mercy.com.au","Med"],
 ["VIC","North East Health Wangaratta","Medical Workforce","Recruitment","MedicalWorkForce@nhw.org.au","High"],
 ["VIC","Monash Health","Doctors Recruitment","Medical Workforce","monashdoctors_recruitment@monashhealth.org","Low"],
+["VIC","Northern Health","Emma Tobin","Junior Medical Workforce","emma.tobin@nh.org.au","Med"],
+["VIC","Northern Health","Dr Heng Cheok","Deputy Dir. of Workforce","heng.cheok@nh.org.au","Med"],
 ["VIC","Northern Health","Doctors Workforce","Recruitment","NorthernDoctorsWorkforce@nh.org.au","Med"],
 ["VIC","Peninsula Health","Medical Recruitment","Recruitment","medicalrecruitment@phcn.vic.gov.au","Med"],
+["VIC","St Vincent's Hospital","Dr Neil Cunningham","Clinical Dir. Medical Workforce","Neil.CUNNINGHAM@svha.org.au","Low"],
+["VIC","St Vincent's Hospital","Catherine Carbery","Ops Dir. Medical Workforce","catherine.carbery@svha.org.au","Low"],
+["VIC","St Vincent's Hospital","Medical Workforce Unit","Recruitment","MWU@svha.org.au","Low"],
+["VIC","St Vincent's Hospital","Dr Genni Newnham","Dir. Pre-Vocational Training","Genni.Newnham@svha.org.au","Low"],
 ["VIC","St Vincent's Hospital","Junior Medical Staff","Recruitment","JMSRecruitment@svha.org.au","Low"],
+["VIC","Royal Children's Hospital","Medical Workforce Unit","Recruitment","medical.careers@rch.org.au","Med"],
 ["VIC","Western Health","Medical Workforce Unit","Recruitment","whmwu@wh.org.au","Med"],
+["VIC","Western Health","Medical Workforce","Recruitment (alt address)","westisbest@wh.org.au","Med"],
 ["VIC","Albury Wodonga Health","Sabrine Baker","Medical Workforce Officer","sabrina.baker@awh.org.au","High"],
+["VIC","Albury Wodonga Health","Dr Ash Bhanot","Clinical Director, ED","ash.bhanot@awh.org","High"],
 ["VIC","Bass Coast Health","Medical Workforce","Recruitment","medicalworkforce@basscoasthealth.org.au","High"],
 ["VIC","Barwon Health (Geelong)","Medical Workforce Unit","Recruitment","MedicalRecruitment@barwonhealth.org.au","Med"],
+["VIC","Barwon Health (Geelong)","Karen Hamon","Medical Workforce Officer","Karen.hamon@barwonhealth.org.au","Med"],
 ["VIC","Bendigo Health","JMO Recruitment","Medical Workforce","jmorecruitment@bendigohealth.org.au","High"],
+["VIC","Bendigo Health","HMO Support","Medical Workforce (alt address)","hmosupport@bendigohealth.org.au","High"],
 ["VIC","Central Gippsland Health","Jacqueline Southall","Medical Workforce Officer","Jacqueline.southall@cghs.com.au","High"],
 ["VIC","East Grampians Health","Kim Lane","Medical Workforce","Kim.lane@eghs.net.au","High"],
 ["VIC","Goulburn Valley Health","Medical Workforce","Recruitment","medicalworkforce@gvhealth.org.au","High"],
 ["VIC","Grampians Health (Ballarat)","Medical Workforce","Recruitment","medwork@gh.org.au","High"],
+["VIC","Grampians Health (Ballarat)","Medical Workforce","Recruitment (alt address)","medwork@bhs.org.au","High"],
+["VIC","Grampians Health (Ballarat)","Dr Mark Hartnell","ED Director","Mark.Hartnell@bhs.org.au","High"],
+["VIC","Grampians Health (Ballarat)","ED Administration","ED Admin Team","edadmin@gh.org.au","High"],
+["VIC","Latrobe Regional Health","Sophie Laurence","GM Medical Services","Sophie.laurence@lrh.com.au","High"],
 ["VIC","Latrobe Regional Health","Medical Workforce Unit","Recruitment","medicalworkforceunit@lrh.com.au","High"],
 ["VIC","Mildura Base Hospital","Teresa Boylan-Kelly","Workforce Manager","TBoylan-Kelly@mbph.org.au","High"],
 ["VIC","Bairnsdale Health Service","Medical Workforce Unit","Recruitment","mwu@brhs.com.au","High"],
 ["VIC","West Gippsland Healthcare","Medical Workforce","Recruitment","medical.workforce@wghg.com.au","High"],
+["WA","WA Health","Dr Graeme Maguire","Executive Dir. Medical Service","Graeme.maguire@health.wa.gov.au","Med"],
 ["WA","Royal Perth Hospital","JMO Careers","Recruitment","JMOcareers@health.wa.gov.au","Med"],
+["WA","Royal Perth Hospital","Shannon Starnes","Medical Workforce","Shannon.Starnes@health.wa.gov.au","Med"],
 ["WA","Fiona Stanley Hospital","Medical Recruitment","Recruitment","FSH.MW@health.wa.gov.au","Med"],
 ["WA","Joondalup Health Campus","Kim Box","Medical Admin","boxk@ramsayhealth.com.au","Med"],
 ["WA","SJOG Hospital","Junior Doctors","RMO Recruitment","juniordoctors@sjog.org.au","Med"],
+["WA","SJOG Hospital","Mitch Cooper","Workforce Officer","Mitch.Cooper@sjog.org.au","Med"],
+["WA","SJOG Hospital","Jackie Vann","Manager Medical Services","Jackie.Vann@sjog.org.au","Med"],
 ["WA","Rockingham General Hospital","Medical Education","Recruitment","RGH.MedicalEducation@health.wa.gov.au","Med"],
+["WA","Rockingham General Hospital","Dr Wouter Gerryts","HOD, ED","Wouter.Gerryts@health.wa.gov.au","Med"],
 ["WA","Peel Health Campus (Mandurah)","Samantha Larmour","Medical Workforce Officer","Samantha.larmour@health.wa.gov.au","Med"],
+["WA","Peel Health Campus (Mandurah)","Aidan Martin","Director, ED","Aidan.Martin@health.wa.gov.au","Med"],
 ["WA","Sir Charles Gairdner Hospital","RMO Recruitment","Recruitment","SCGH.RMO@health.wa.gov.au","Med"],
+["WA","Perth Children's Hospital","Medical Recruitment","Recruitment","CAHS.medicalworkforce@health.wa.gov.au","Med"],
+["WA","King Edward Memorial Hospital","JMO Recruitment","Recruitment","KEMH.JuniorMedicalOfficer@health.wa.gov.au","Med"],
 ["WA","Royal Perth Bentley Group","RMO Recruitment","Intern/RMO Contracts","RPH.RMO-InternContracts@health.wa.gov.au","Med"],
 ["WA","Hollywood Private (Ramsay)","Medical Services","Recruitment","medicalservices.hph@ramsayhealth.com.au","Med"],
 ["WA","Albany Health Campus","Kaz Germinaro","Med Admin Coordinator","gs.medadmincoord@health.wa.gov.au","High"],
+["WA","Albany Health Campus","Dr James Teh","Rural Generalist, Co-HOD","James.Teh2@health.wa.gov.au","High"],
+["WA","Albany Health Campus","Dr David McCutcheon","Co-HOD","David.McCutcheon@health.wa.gov.au","High"],
 ["WA","Broome Hospital","Sue Ralph","Medical Education Officer","meo.broome@health.wa.gov.au","High"],
 ["WA","Broome Hospital","Dr David Forster","Dir. Clinical Training","David.Forster@health.wa.gov.au","High"],
+["WA","Broome Hospital","Dr John Robson","Dir. Medical Services","john.robson@health.wa.gov.au","High"],
 ["WA","Bunbury Regional (WACHS SW)","Maddison Matthews","Senior Workforce Officer","WACHSSWMedicalRecruitment@health.wa.gov.au","High"],
 ["WA","Geraldton Hospital (WACHS Midwest)","Medical Workforce Unit","Recruitment","medicalservices.WACHSMidwest@health.wa.gov.au","High"],
 ["WA","Geraldton Hospital","Dr Marg Sturdy","Dir. Medical Services","Marg.Sturdy@health.wa.gov.au","High"],
+["WA","Geraldton Hospital","Dr Dan Laubscher","HOD, ED","daniel.laubscher@health.wa.gov.au","High"],
 ["WA","Kalgoorlie Health Campus","Amanda Ryan","Medical Admin Officer","Amanda.Ryan2@health.wa.gov.au","High"],
 ["WA","Kalgoorlie Health Campus","Dr Lisa Sorger","Dir. Medical Service","lisa.sorger@health.wa.gov.au","High"],
+["WA","Northam Hospital","Dr Anna Varone","Clinical Lead","Anna.Varone@health.wa.gov.au","High"]
 ];
-const CONTACTS=RAW.map((r,i)=>({id:"c"+i,state:r[0],hospital:r[1],contact:r[2],role:r[3],email:r[4],priority:r[5]}));
+const CONTACTS=RAW.map(r=>({id:"e:"+r[4].toLowerCase(),state:r[0],hospital:r[1],contact:r[2],role:r[3],email:r[4],priority:r[5]}));
 const STATUSES=["Not sent","Sent","Followed up","Replied","Interview","Closed"];
 const STATES=["All","QLD","NSW","VIC","WA","SA","TAS","NT","ACT"];
 const KEY="eoi-tracker-v1", SKEY="eoi-settings-v1", FU=7;
 const SUBJECT="EOI \u2013 RMO Position \u2013 Dr Akshay Shibu (AMC Clinical Passed, PTE 90/90)";
 const GENERIC=/(Recruitment|Workforce|Admin|Unit|Team|Enquiries|Services|Medical|JMO|RMO|Careers|Doctors|Staff|Education)/i;
+// emails of the earlier build, in original order, used to migrate saved data keyed c0..cN
+const OLD_EMAILS=["CHSNCH.medical.recruitment@act.gov.au","CHSTCHMosu@act.gov.au","RDHJMOWorkforce.DoH@nt.gov.au","jmoworkforcerdh.health@nt.gov.au","WSLHD-BMDHMedicalWorkforce@health.nsw.gov.au","nbmlhd-recruitment@health.nsw.gov.au","NNSWLHD-CandidateExperienceTeam@health.nsw.gov.au","SESLHD-MedicalWorkforceUnitSTG@health.nsw.gov.au","SWSLHD-ESU@health.nsw.gov.au","CCLHD-Recruitment@health.nsw.gov.au","Sally.Jordan@health.nsw.gov.au","NNSWLHD-LIS-JMORecruitment@health.nsw.gov.au","Linda.Venables@health.nsw.gov.au","Jonathon.Candrick@health.nsw.gov.au","jessica.glover@health.nsw.gov.au","Berenika.turchin@health.nsw.gov.au","JMOrecruitment@healthscope.com.au","Sarah.Sharp@health.nsw.gov.au","Danielle.Klingberg1@health.nsw.gov.au","Daniel.Williams1@health.nsw.gov.au","SESLD-JMOPOW@health.nsw.gov.au","Irene.Ho@health.nsw.gov.au","Adrian.Taylor@health.nsw.gov.au","Margaret.Swan@health.nsw.gov.au","Sarah.Jones5@health.nsw.gov.au","nnswlhd-twe-jmomanager@health.nsw.gov.au","Christopher.Mumme@health.nsw.gov.au","HNELHD-armidalemedicaladmin@health.nsw.gov.au","Mark.Kelly1@health.nsw.gov.au","CHHHS_RMO_Recruitment@health.qld.gov.au","tjaart.grobbelaar@health.qld.gov.au","thomas.coombs@health.qld.gov.au","CQHHS_JMORecruit@health.qld.gov.au","cw-workforcemedical@health.qld.gov.au","John.Douyere@health.qld.gov.au","felicity.haydock@health.qld.gov.au","nichole.harch@health.qld.gov.au","DDHHS-Rural-Medical@health.qld.gov.au","DDHHS-JNR-MEDICAL@health.qld.gov.au","Liam.Weber@health.qld.gov.au","GCHmedservicesunit@health.qld.gov.au","JMOAdmin.GPH@ramsayhealth.com.au","mackaymedicalworkforce@health.qld.gov.au","medworkforce@mater.org.au","caboolturemedicalrecruitment@health.qld.gov.au","RBWHMedicalWorkforce@health.qld.gov.au","RedcliffeMedicalRecruitment@health.qld.gov.au","TPCH-RMOMedicalWorkforce@health.qld.gov.au","LBMedicalWorkforce@health.qld.gov.au","PAH_JnrMedicalWorkforce@health.qld.gov.au","QEII_MedicalWorkforce@health.qld.gov.au","BaysideMedicalWorkforce@health.qld.gov.au","NWHHSMedicalWorkforceUnit@health.qld.gov.au","Brianna.Smith@health.qld.gov.au","swhhs-mms@health.qld.gov.au","deb.smith3@health.qld.gov.au","daniel.halliday@health.qld.gov.au","adam.coltzau@health.qld.gov.au","sc-medicaladmin@health.qld.gov.au","tchhs-medicalrecruitment@health.qld.gov.au","tchhs-dms-east@health.qld.gov.au","TSV-Medworkforce@health.qld.gov.au","selina.porter@health.qld.gov.au","WMJuniorMedical@health.qld.gov.au","WBHHS-MedicalAdmin@health.qld.gov.au","hws@healthworkforce.com.au","Health.BHFLHNMedicalEducationUnit@sa.gov.au","Peter.Stuart@sa.gov.au","Kaylee.brown@sa.gov.au","Alison.Lydeamore@sa.gov.au","Health.FUNLHNMedicalEducationUnit@sa.gov.au","mary.harvey@sa.gov.au","tanya.roesler@sa.gov.au","Hamish.Eske@sa.gov.au","Kate.Wislang@sa.gov.au","Jaslyn.Cooper@sa.gov.au","cameron.wyers@sa.gov.au","Health.CALHNAUCRecruitment@sa.gov.au","marita.eccles@ths.tas.gov.au","shelley.hampson@ths.tas.gov.au","rebecca.spencer@health.tas.gov.au","mel.green@ths.tas.gov.au","sophie.coghlan@ths.tas.gov.au","medicalrecruitment@alfred.org.au","hmorecruitment@austin.org.au","docsgoeast@easternhealth.org.au","ditrecruitment@mh.org.au","JMS-Enquiries@mercy.com.au","MedicalWorkForce@nhw.org.au","monashdoctors_recruitment@monashhealth.org","NorthernDoctorsWorkforce@nh.org.au","medicalrecruitment@phcn.vic.gov.au","JMSRecruitment@svha.org.au","whmwu@wh.org.au","sabrina.baker@awh.org.au","medicalworkforce@basscoasthealth.org.au","MedicalRecruitment@barwonhealth.org.au","jmorecruitment@bendigohealth.org.au","Jacqueline.southall@cghs.com.au","Kim.lane@eghs.net.au","medicalworkforce@gvhealth.org.au","medwork@gh.org.au","medicalworkforceunit@lrh.com.au","TBoylan-Kelly@mbph.org.au","mwu@brhs.com.au","medical.workforce@wghg.com.au","JMOcareers@health.wa.gov.au","FSH.MW@health.wa.gov.au","boxk@ramsayhealth.com.au","juniordoctors@sjog.org.au","RGH.MedicalEducation@health.wa.gov.au","Samantha.larmour@health.wa.gov.au","SCGH.RMO@health.wa.gov.au","RPH.RMO-InternContracts@health.wa.gov.au","medicalservices.hph@ramsayhealth.com.au","gs.medadmincoord@health.wa.gov.au","meo.broome@health.wa.gov.au","David.Forster@health.wa.gov.au","WACHSSWMedicalRecruitment@health.wa.gov.au","medicalservices.WACHSMidwest@health.wa.gov.au","Marg.Sturdy@health.wa.gov.au","Amanda.Ryan2@health.wa.gov.au","lisa.sorger@health.wa.gov.au"];
 
 // ---------- template ----------
 function greetingFor(c){return c.contact.includes("/")||GENERIC.test(c.contact)?"Dear Medical Workforce Team,":"Dear "+c.contact+",";}
@@ -277,11 +351,24 @@ AMC 1 & 2 Passed | PTE Academic 90/90
 }
 
 // ---------- state ----------
-let records={}, settings={apiKey:""};
+let records={}, settings={apiKey:"",supaUrl:"",supaKey:"",syncId:""};
 try{records=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){records={}}
 try{settings=Object.assign(settings,JSON.parse(localStorage.getItem(SKEY)||"{}"))}catch(e){}
+// migrate old position-based ids (c0, c1, …) to email-based ids
+(function migrate(){
+  let changed=false;
+  for(const k of Object.keys(records)){
+    const m=/^c(\d+)$/.exec(k);
+    if(m){
+      const em=OLD_EMAILS[Number(m[1])];
+      if(em){const nk="e:"+em.toLowerCase();if(!records[nk])records[nk]=records[k];}
+      delete records[k];changed=true;
+    }
+  }
+  if(changed)localStorage.setItem(KEY,JSON.stringify(records));
+})();
 const rec=id=>records[id]||{status:"Not sent",dateSent:"",notes:"",aiText:""};
-function update(id,patch){records[id]=Object.assign({},rec(id),patch);localStorage.setItem(KEY,JSON.stringify(records));}
+function update(id,patch){records[id]=Object.assign({},rec(id),patch);localStorage.setItem(KEY,JSON.stringify(records));localStorage.setItem(KEY+"-t",String(Date.now()));schedulePush();}
 let expanded=null, aiBusy=null;
 const F={q:"",state:"All",status:"All",prio:"All",dueOnly:false};
 
@@ -291,7 +378,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 const today=()=>new Date().toISOString().slice(0,10);
 const daysSince=iso=>iso?Math.floor((Date.now()-new Date(iso).getTime())/864e5):0;
 const isDue=c=>{const r=rec(c.id);return(r.status==="Sent"||r.status==="Followed up")&&r.dateSent&&daysSince(r.dateSent)>=FU;};
-function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1600);}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2000);}
 async function copyText(text,msg){
   try{await navigator.clipboard.writeText(text);}
   catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();}
@@ -299,24 +386,68 @@ async function copyText(text,msg){
 }
 
 // ---------- AI ----------
+function aiHeaders(){return{"Content-Type":"application/json","x-api-key":settings.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"};}
+async function aiCall(prompt){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:aiHeaders(),
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+  const data=await res.json();
+  if(data.error)throw new Error(data.error.message||data.error.type||"API error");
+  return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+}
 async function personalize(c){
   if(!settings.apiKey){toast("Add your API key in Settings first");openSettings();return;}
   aiBusy=c.id;renderList();
   try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-      headers:{"Content-Type":"application/json","x-api-key":settings.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:
-"Rewrite this expression-of-interest email so it reads as genuinely tailored to the recipient: "+c.contact+", "+c.role+", at "+c.hospital+" ("+c.state+", Australia). The sender is an international medical graduate seeking an RMO position.\n\nRules:\n- Keep every factual claim exactly as written (exams, scores, experience, sponsorship need, availability, referees). Do NOT invent facts, publications, mutual connections, or knowledge of the hospital you cannot be sure of.\n- Add at most 1-2 sentences genuinely specific to this recipient's role or region.\n- Under 200 words. Plain text only. Professional and warm, not flowery.\n- Return ONLY the email body, nothing else.\n\n"+buildEmail(c)}]})});
-    const data=await res.json();
-    if(data.error){toast("API error: "+(data.error.message||data.error.type).slice(0,80));}
-    else{
-      const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
-      if(text){update(c.id,{aiText:text});toast("Personalized \u2014 read it before sending");}
-      else toast("Empty response \u2014 template kept");
-    }
-  }catch(e){toast("Network/CORS error \u2014 template kept");}
+    const text=await aiCall("Rewrite this expression-of-interest email so it reads as genuinely tailored to the recipient: "+c.contact+", "+c.role+", at "+c.hospital+" ("+c.state+", Australia). The sender is an international medical graduate seeking an RMO position.\n\nRules:\n- Keep every factual claim exactly as written (exams, scores, experience, sponsorship need, availability, referees). Do NOT invent facts, publications, mutual connections, or knowledge of the hospital you cannot be sure of.\n- Add at most 1-2 sentences genuinely specific to this recipient's role or region.\n- Under 200 words. Plain text only. Professional and warm, not flowery.\n- Return ONLY the email body, nothing else.\n\n"+buildEmail(c));
+    if(text){update(c.id,{aiText:text});toast("Personalized \u2014 read it before sending");}
+    else toast("Empty response \u2014 template kept");
+  }catch(e){toast("AI failed: "+String(e.message).slice(0,70));}
   aiBusy=null;renderList();
 }
+async function aiEdit(c,instr){
+  if(!instr){toast("Type an edit instruction first");return;}
+  if(!settings.apiKey){toast("Add your API key in Settings first");openSettings();return;}
+  const draft=rec(c.id).aiText||buildEmail(c);
+  aiBusy=c.id;renderList();
+  try{
+    const text=await aiCall("Below is a draft expression-of-interest email from Dr Akshay Shibu (an IMG seeking an RMO position in Australia) and an edit instruction from him.\n\nEdit instruction: "+instr+"\n\nRules:\n- Apply the instruction faithfully.\n- Keep all other factual claims unchanged; do not invent facts beyond what the instruction states.\n- Keep it under 220 words, plain text, professional.\n- Return ONLY the revised email body, nothing else.\n\nDraft:\n"+draft);
+    if(text){update(c.id,{aiText:text});toast("Edit applied \u2014 read it before sending");}
+    else toast("Empty response \u2014 draft unchanged");
+  }catch(e){toast("AI failed: "+String(e.message).slice(0,70));}
+  aiBusy=null;renderList();
+}
+
+// ---------- cloud sync (Supabase) ----------
+let syncState="off",pushTimer=null;
+const syncOn=()=>!!(settings.supaUrl&&settings.supaKey&&settings.syncId);
+function sbHeaders(){return{apikey:settings.supaKey,Authorization:"Bearer "+settings.supaKey,"Content-Type":"application/json"};}
+function sbUrl(){return settings.supaUrl.replace(/\/+$/,"")+"/rest/v1/eoi_state";}
+function renderSync(){const el=$("#syncStat");if(!el)return;
+  el.textContent=!syncOn()?"":syncState==="syncing"?" · cloud: syncing…":syncState==="ok"?" · cloud: synced ✓":syncState==="err"?" · cloud: ERROR":" · cloud: on";
+  el.style.color=syncState==="err"?"var(--red)":"";
+  $("#syncBtn").style.display=syncOn()?"":"none";}
+function schedulePush(){if(!syncOn())return;clearTimeout(pushTimer);pushTimer=setTimeout(pushSync,1500);}
+async function pushSync(){if(!syncOn())return;syncState="syncing";renderSync();
+  try{const now=new Date().toISOString();
+    const res=await fetch(sbUrl(),{method:"POST",headers:Object.assign(sbHeaders(),{Prefer:"resolution=merge-duplicates"}),
+      body:JSON.stringify([{id:settings.syncId,data:records,updated_at:now}])});
+    if(res.ok){localStorage.setItem(KEY+"-t",String(new Date(now).getTime()));syncState="ok";}
+    else syncState="err";
+  }catch(e){syncState="err";}
+  renderSync();}
+async function pullSync(showToast){if(!syncOn())return;syncState="syncing";renderSync();
+  try{const res=await fetch(sbUrl()+"?id=eq."+encodeURIComponent(settings.syncId)+"&select=data,updated_at",{headers:sbHeaders()});
+    const arr=await res.json();
+    if(res.ok){
+      if(Array.isArray(arr)&&arr[0]&&arr[0].data){
+        const remoteT=new Date(arr[0].updated_at||0).getTime(),localT=Number(localStorage.getItem(KEY+"-t")||0);
+        if(remoteT>localT){records=arr[0].data;localStorage.setItem(KEY,JSON.stringify(records));localStorage.setItem(KEY+"-t",String(remoteT));renderAll();if(showToast)toast("Pulled newer data from cloud");}
+        else if(showToast)toast("Local copy is up to date");
+      }else if(showToast)toast("No cloud data yet \u2014 will upload on next change");
+      syncState="ok";
+    }else syncState="err";
+  }catch(e){syncState="err";}
+  renderSync();}
 
 // ---------- export / import ----------
 function download(name,content,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
@@ -343,8 +474,11 @@ function importFile(kind){
   const inp=$("#fileInput");inp.value="";
   inp.onchange=()=>{const f=inp.files[0];if(!f)return;const rd=new FileReader();
     rd.onload=()=>{try{
-      if(kind==="json"){const d=JSON.parse(rd.result);if(d.records){records=d.records;localStorage.setItem(KEY,JSON.stringify(records));toast("Backup restored");}else toast("Not a valid backup file");}
-      else{
+      if(kind==="json"){
+        const d=JSON.parse(rd.result);
+        if(d.records){records=d.records;localStorage.setItem(KEY,JSON.stringify(records));localStorage.setItem(KEY+"-t",String(Date.now()));schedulePush();toast("Backup restored");}
+        else toast("Not a valid backup file");
+      }else{
         const rows=parseCSV(rd.result);const head=rows[0].map(h=>h.trim().toLowerCase());
         const ix=n=>head.indexOf(n);
         const em=ix("email"),st=ix("status"),dt=ix("date sent"),nt=ix("notes");
@@ -387,7 +521,7 @@ function filtered(){
 function card(c){
   const r=rec(c.id),due=isDue(c),open=expanded===c.id;
   const prioCls=c.priority==="High"?"hi":c.priority==="Med"?"md":"lo";
-  let h='<div class="card'+(due?" due":"")+'" data-id="'+c.id+'">'
+  let h='<div class="card'+(due?" due":"")+'" data-id="'+esc(c.id)+'">'
     +'<div class="head" data-act="toggle">'
     +'<span class="pill s-'+r.status.replace(/ /g,"")+'">'+r.status+'</span>'
     +'<div class="tags"><span class="hosp">'+esc(c.hospital)+'</span>'
@@ -408,6 +542,7 @@ function card(c){
       +'<button class="ai" data-act="ai"'+(aiBusy===c.id?" disabled":"")+'>'+(aiBusy===c.id?"Writing…":"AI-personalize")+'</button>'
       +(r.aiText?'<button data-act="reset">Reset to template</button>':"")
       +'</div>'
+      +'<div class="row"><input type="text" data-act="aiinstr" placeholder="Tell AI what to change \u2014 e.g. mention my ICU exposure, make it shorter" style="flex:1"><button class="ai" data-act="aiedit"'+(aiBusy===c.id?" disabled":"")+'>Apply with AI</button></div>'
       +'<textarea data-act="body" rows="11">'+esc(r.aiText||buildEmail(c))+'</textarea>'
       +'<div class="hint '+(r.aiText?"saved":"")+'">'+(r.aiText?"Edited / AI version saved for this contact — read every word before sending; it goes out under your name.":"Auto-filled template. Any edit is saved for this contact only.")+'</div></div>'
       +'<textarea data-act="notes" rows="2" placeholder="Notes — who replied, what they said, next step…">'+esc(r.notes)+'</textarea>'
@@ -427,11 +562,13 @@ $("#list").addEventListener("click",e=>{
   const actEl=e.target.closest("[data-act]");if(!actEl)return;
   const cardEl=e.target.closest(".card");if(!cardEl)return;
   const id=cardEl.dataset.id,c=CONTACTS.find(x=>x.id===id),act=actEl.dataset.act;
+  if(!c)return;
   if(act==="toggle"){expanded=expanded===id?null:id;renderList();}
   else if(act==="copyaddr")copyText(c.email,"Address copied");
   else if(act==="copysubj")copyText(SUBJECT,"Subject copied");
   else if(act==="copybody")copyText(rec(id).aiText||buildEmail(c),"Email text copied — paste into Gmail");
   else if(act==="ai")personalize(c);
+  else if(act==="aiedit"){const inp=cardEl.querySelector('input[data-act="aiinstr"]');aiEdit(c,inp?inp.value.trim():"");}
   else if(act==="reset"){update(id,{aiText:""});renderList();}
   else if(act==="status"){
     const s=actEl.dataset.s,r=rec(id),patch={status:s};
@@ -456,13 +593,31 @@ $("#list").addEventListener("input",e=>{
     renderList();
   });
 });
-function openSettings(){$("#apiKeyInput").value=settings.apiKey;$("#settingsDlg").showModal();}
+function openSettings(){
+  $("#apiKeyInput").value=settings.apiKey;
+  $("#supaUrlInput").value=settings.supaUrl;
+  $("#supaKeyInput").value=settings.supaKey;
+  $("#syncIdInput").value=settings.syncId;
+  $("#settingsDlg").showModal();
+}
 $("#settingsBtn").onclick=openSettings;
 $("#closeDlg").onclick=()=>$("#settingsDlg").close();
-$("#saveDlg").onclick=()=>{settings.apiKey=$("#apiKeyInput").value.trim();localStorage.setItem(SKEY,JSON.stringify(settings));$("#settingsDlg").close();toast("Settings saved");};
+$("#saveDlg").onclick=()=>{
+  settings.apiKey=$("#apiKeyInput").value.trim();
+  settings.supaUrl=$("#supaUrlInput").value.trim();
+  settings.supaKey=$("#supaKeyInput").value.trim();
+  settings.syncId=$("#syncIdInput").value.trim();
+  localStorage.setItem(SKEY,JSON.stringify(settings));
+  $("#settingsDlg").close();toast("Settings saved");
+  renderSync();pullSync(true);
+};
+$("#genSync").onclick=()=>{$("#syncIdInput").value="eoi-"+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10);};
+$("#copySql").onclick=()=>copyText('create table if not exists public.eoi_state (id text primary key, data jsonb, updated_at timestamptz);\nalter table public.eoi_state enable row level security;\ncreate policy "open access" on public.eoi_state for all using (true) with check (true);',"Setup SQL copied \u2014 paste into Supabase SQL Editor and Run");
 $("#importJsonBtn").onclick=()=>importFile("json");
 $("#importCsvBtn").onclick=()=>importFile("csv");
 $("#backupBtn").onclick=backup;
+$("#syncBtn").onclick=()=>{pullSync(true).then(()=>pushSync());};
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pullSync(false);});
 
 // ---------- init ----------
 $("#total").textContent=CONTACTS.length;
@@ -475,6 +630,8 @@ $("#manifest").href="data:application/json;charset=utf-8,"+encodeURIComponent(JS
   icons:[{src:svgIcon,sizes:"192x192 512x512",type:"image/svg+xml",purpose:"any"}]
 }));
 renderAll();
+renderSync();
+pullSync(false);
 </script>
 </body>
 </html>
