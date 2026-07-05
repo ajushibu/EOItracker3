@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>EOI Tracker — Dr Akshay Shibu</title>
+<link id="manifest" rel="manifest">
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#0f172a; --mut:#64748b; --faint:#94a3b8;
+    --line:#e2e8f0; --sky:#0284c7; --skybg:#e0f2fe; --green:#059669; --greenbg:#d1fae5;
+    --amber:#d97706; --amberbg:#fef3c7; --indigo:#4f46e5; --indigobg:#e0e7ff; --red:#dc2626;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;padding-bottom:40px}
+  .wrap{max-width:960px;margin:0 auto;padding:16px 12px}
+  h1{font-size:22px;letter-spacing:-.02em}
+  .sub{font-size:12.5px;color:var(--mut);margin-top:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .between{justify-content:space-between}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#fff;padding:6px 10px;font-size:12.5px}
+  button:active{transform:scale(.98)}
+  button.primary{background:var(--green);border-color:var(--green);color:#fff}
+  button.dark{background:var(--ink);border-color:var(--ink);color:#fff}
+  button.ai{border-color:#c7d2fe;color:var(--indigo)}
+  button[disabled]{opacity:.5;cursor:wait}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:14px 0}
+  @media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-align:left}
+  .stat b{display:block;font-size:22px}
+  .stat span{font-size:11.5px;color:var(--mut)}
+  .stat.due-on{border-color:#fbbf24;background:var(--amberbg)}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  input[type=text],select,input[type=date],textarea{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff}
+  input[type=text]{flex:1;min-width:150px}
+  textarea{width:100%;resize:vertical}
+  .count{font-size:11.5px;color:var(--faint);margin:4px 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+  .card.due{border-color:#fbbf24}
+  .head{padding:10px 12px;cursor:pointer}
+  .tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .hosp{font-weight:600;font-size:13.5px}
+  .tag{font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px}
+  .tag.st{background:var(--ink);color:#fff}
+  .tag.hi{background:var(--amberbg);color:#92400e;border:1px solid #fcd34d}
+  .tag.md{background:#f1f5f9;color:var(--mut)}
+  .tag.lo{background:#f8fafc;color:var(--faint)}
+  .tag.duef{background:#fbbf24;color:#451a03}
+  .who{font-size:12px;color:var(--mut);margin-top:3px}
+  .pill{font-size:11px;padding:3px 9px;border-radius:99px;white-space:nowrap;float:right;margin-left:8px}
+  .s-Notsent{background:#f1f5f9;color:var(--mut)} .s-Sent{background:var(--skybg);color:#075985}
+  .s-Followedup{background:var(--indigobg);color:#3730a3} .s-Replied{background:var(--greenbg);color:#065f46}
+  .s-Interview{background:var(--green);color:#fff} .s-Closed{background:#e2e8f0;color:var(--faint);text-decoration:line-through}
+  .body{border-top:1px solid #f1f5f9;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+  code{font-size:11.5px;background:#f1f5f9;padding:3px 7px;border-radius:6px;word-break:break-all}
+  .statusbtns button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .emailbox{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:7px}
+  .hint{font-size:10.5px;line-height:1.5;color:var(--faint)}
+  .hint.saved{color:var(--indigo)} .hint.err{color:var(--red)}
+  .lbl{font-size:11.5px;color:var(--mut)}
+  .foot{font-size:11px;color:var(--faint);margin-top:22px;line-height:1.6}
+  dialog{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:440px;width:92%}
+  dialog::backdrop{background:rgba(15,23,42,.4)}
+  dialog h2{font-size:16px;margin-bottom:6px}
+  dialog p{font-size:12.5px;color:var(--mut);line-height:1.55;margin-bottom:10px}
+  dialog input{width:100%}
+  .empty{text-align:center;color:var(--faint);font-size:13px;padding:36px 0}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:8px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row between">
+    <div>
+      <h1>EOI Tracker</h1>
+      <div class="sub">Australian RMO campaign · Dr Akshay Shibu · <span id="total"></span> contacts</div>
+    </div>
+    <div class="row">
+      <button id="settingsBtn">⚙ Settings</button>
+      <button id="backupBtn">Backup</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="filters">
+    <input type="text" id="q" placeholder="Search hospital, name, email…">
+    <select id="fState"></select>
+    <select id="fStatus"></select>
+    <select id="fPrio">
+      <option value="All">All priority</option><option>High</option><option>Med</option><option>Low</option>
+    </select>
+  </div>
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+
+  <div class="foot">
+    Data is stored only in this browser on this device — use <b>Backup</b> regularly (a cleared browser wipes it).
+    Contacts compiled from IMG Career Support lists; verify an address before assuming silence means no.
+    AI-personalize needs an Anthropic API key (Settings) and small credit; everything else is free and offline.
+  </div>
+</div>
+
+<dialog id="settingsDlg">
+  <h2>Settings</h2>
+  <p><b>Anthropic API key</b> — only needed for the AI-personalize button. Create one at console.anthropic.com (separate from your Claude subscription; needs a small credit balance — each rewrite costs a fraction of a cent). The key is stored only in this browser.</p>
+  <input type="text" id="apiKeyInput" placeholder="sk-ant-…" autocomplete="off">
+  <p style="margin-top:10px"><b>Restore from backup</b> — load a previously exported JSON backup, or import the CSV exported from the Claude artifact version to carry your progress over.</p>
+  <div class="row">
+    <button id="importJsonBtn">Import JSON backup</button>
+    <button id="importCsvBtn">Import artifact CSV</button>
+    <input type="file" id="fileInput" hidden>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
+    <button id="closeDlg">Cancel</button>
+    <button class="dark" id="saveDlg">Save</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// ---------- data ----------
+const RAW=[
+["ACT","Canberra Health Services","Melinda Fors","Medical Workforce","CHSNCH.medical.recruitment@act.gov.au","Med"],
+["ACT","Canberra Health Services","Medical Administration","Senior Director / Director","CHSTCHMosu@act.gov.au","Med"],
+["NT","NT Health (all sites)","RMO Recruitment","JMO Workforce","RDHJMOWorkforce.DoH@nt.gov.au","High"],
+["NT","Royal Darwin Hospital","JMO Workforce","RMO Recruitment","jmoworkforcerdh.health@nt.gov.au","High"],
+["NSW","Westmead / Blacktown / Auburn (WSLHD)","Medical Workforce","Recruitment","WSLHD-BMDHMedicalWorkforce@health.nsw.gov.au","Low"],
+["NSW","Nepean Blue Mountains LHD","Medical Workforce","Recruitment","nbmlhd-recruitment@health.nsw.gov.au","Med"],
+["NSW","Northern NSW LHD (Lismore, Tweed etc.)","Candidate Experience Team","Recruitment","NNSWLHD-CandidateExperienceTeam@health.nsw.gov.au","High"],
+["NSW","SESLHD (St George, Sutherland etc.)","Medical Workforce Unit","Recruitment","SESLHD-MedicalWorkforceUnitSTG@health.nsw.gov.au","Low"],
+["NSW","SWSLHD (Liverpool, Campbelltown etc.)","Employment Services","Recruitment","SWSLHD-ESU@health.nsw.gov.au","Med"],
+["NSW","Central Coast LHD (Gosford, Wyong)","Medical Workforce","Recruitment","CCLHD-Recruitment@health.nsw.gov.au","Med"],
+["NSW","John Hunter Hospital","Sally Jordan","Senior Medical Recruitment","Sally.Jordan@health.nsw.gov.au","Med"],
+["NSW","Lismore Base Hospital","Samantha Corcoran","JMO Recruitment","NNSWLHD-LIS-JMORecruitment@health.nsw.gov.au","High"],
+["NSW","Maitland Hospital","Linda Venables","JMO Manager","Linda.Venables@health.nsw.gov.au","Med"],
+["NSW","Maitland Hospital","Dr Jonathon Candrick","Dir. Prevocational Training","Jonathon.Candrick@health.nsw.gov.au","Med"],
+["NSW","Manning Base Hospital","Jess Glover","Senior Medical Recruitment","jessica.glover@health.nsw.gov.au","High"],
+["NSW","Manning Base Hospital","Dr Berenika Turchin","Clinical Director, ED","Berenika.turchin@health.nsw.gov.au","High"],
+["NSW","Northern Beaches Hospital","JMO Recruitment","Medical Workforce","JMOrecruitment@healthscope.com.au","Med"],
+["NSW","Orange Hospital","Sarah Sharp","JMO Manager","Sarah.Sharp@health.nsw.gov.au","High"],
+["NSW","Orange Hospital","Dr Danielle Klingberg","Dir. Prevocational Training","Danielle.Klingberg1@health.nsw.gov.au","High"],
+["NSW","Port Macquarie Hospital","Daniel Williams","JMO Manager","Daniel.Williams1@health.nsw.gov.au","High"],
+["NSW","Prince of Wales Hospital","JMO Unit","Medical Workforce","SESLD-JMOPOW@health.nsw.gov.au","Low"],
+["NSW","Ryde Hospital","Dr Irene Ho","Dir. Prevocational Training","Irene.Ho@health.nsw.gov.au","Med"],
+["NSW","Shoalhaven Hospital","Dr Adrian Taylor","Dir. Prevocational Training","Adrian.Taylor@health.nsw.gov.au","High"],
+["NSW","Sutherland Hospital","Margaret Swan","Workforce Officer","Margaret.Swan@health.nsw.gov.au","Med"],
+["NSW","Tamworth Hospital","Dr Sarah Jones","Dir. Prevocational Training","Sarah.Jones5@health.nsw.gov.au","High"],
+["NSW","Tweed Hospital","JMO Manager","Medical Workforce","nnswlhd-twe-jmomanager@health.nsw.gov.au","High"],
+["NSW","Wagga Wagga Base Hospital","Dr Christopher Mumme","Dir. Prevocational Training","Christopher.Mumme@health.nsw.gov.au","High"],
+["NSW","Armidale Hospital","Rhiannon Pankhurst","JMO Manager","HNELHD-armidalemedicaladmin@health.nsw.gov.au","High"],
+["NSW","Armidale Hospital","Dr Mark Kelly","Dir. Prevocational Training","Mark.Kelly1@health.nsw.gov.au","High"],
+["QLD","Cairns & Hinterland HHS","RMO Recruitment","Recruitment Officer","CHHHS_RMO_Recruitment@health.qld.gov.au","High"],
+["QLD","Cairns & Hinterland HHS","Dr Tjaart Grobbelaar","Dir. Rural Medical Service","tjaart.grobbelaar@health.qld.gov.au","High"],
+["QLD","Innisfail Hospital","Dr Thomas Coombs","Dir. Rural Medical Service","thomas.coombs@health.qld.gov.au","High"],
+["QLD","Central QLD HHS (Rockhampton etc.)","RMO Enquiries","JMO Recruitment","CQHHS_JMORecruit@health.qld.gov.au","High"],
+["QLD","Central West HHS (Longreach etc.)","Medical Workforce","RMO & Registrar","cw-workforcemedical@health.qld.gov.au","High"],
+["QLD","Central West HHS","Dr John Douyere","Dir. Clinical Training","John.Douyere@health.qld.gov.au","High"],
+["QLD","Central West HHS","Felicity Haydock","Workforce Manager","felicity.haydock@health.qld.gov.au","High"],
+["QLD","Central Highlands","Dr Nikki Harch","Dir. Medical Services","nichole.harch@health.qld.gov.au","High"],
+["QLD","Darling Downs HHS (rural)","Rural Medical","RMO Recruitment","DDHHS-Rural-Medical@health.qld.gov.au","High"],
+["QLD","Toowoomba Hospital","Junior Medical","RMO Recruitment","DDHHS-JNR-MEDICAL@health.qld.gov.au","High"],
+["QLD","Darling Downs HHS","Dr Liam Weber","Dir. Medical Services","Liam.Weber@health.qld.gov.au","High"],
+["QLD","Gold Coast HHS","Medical Services Unit","RMO & Registrar","GCHmedservicesunit@health.qld.gov.au","Med"],
+["QLD","Greenslopes Private (Ramsay)","JMO Admin","RMO & Registrar","JMOAdmin.GPH@ramsayhealth.com.au","Med"],
+["QLD","Mackay HHS","Medical Workforce","RMO & Registrar","mackaymedicalworkforce@health.qld.gov.au","High"],
+["QLD","Mater Brisbane","Medical Workforce","Recruitment","medworkforce@mater.org.au","Med"],
+["QLD","Caboolture Hospital","Medical Recruitment","Recruitment","caboolturemedicalrecruitment@health.qld.gov.au","Med"],
+["QLD","Royal Brisbane & Women's","Medical Workforce","Recruitment","RBWHMedicalWorkforce@health.qld.gov.au","Low"],
+["QLD","Redcliffe Hospital","Medical Recruitment","Recruitment","RedcliffeMedicalRecruitment@health.qld.gov.au","Med"],
+["QLD","Prince Charles Hospital","RMO Medical Workforce","Recruitment","TPCH-RMOMedicalWorkforce@health.qld.gov.au","Med"],
+["QLD","Logan Hospital","Medical Workforce","Recruitment","LBMedicalWorkforce@health.qld.gov.au","Med"],
+["QLD","Princess Alexandra Hospital","Junior Medical Workforce","JHO/SHO Recruitment","PAH_JnrMedicalWorkforce@health.qld.gov.au","Low"],
+["QLD","QEII Hospital","Medical Workforce","RMO Recruitment","QEII_MedicalWorkforce@health.qld.gov.au","Med"],
+["QLD","Redland Hospital","Bayside Medical Workforce","RMO/Registrar","BaysideMedicalWorkforce@health.qld.gov.au","Med"],
+["QLD","Mount Isa (North West HHS)","Medical Workforce Unit","Recruitment","NWHHSMedicalWorkforceUnit@health.qld.gov.au","High"],
+["QLD","Mount Isa Hospital","Dr Brianna Smith","Senior Workforce","Brianna.Smith@health.qld.gov.au","High"],
+["QLD","South West HHS (Charleville, Roma)","Medical Services","RMO Recruitment","swhhs-mms@health.qld.gov.au","High"],
+["QLD","Charleville Hospital","Dr Deb Smith","Dir. Medical Services","deb.smith3@health.qld.gov.au","High"],
+["QLD","Roma Hospital","Dr Dan Halliday","Dir. Medical Services","daniel.halliday@health.qld.gov.au","High"],
+["QLD","St George Hospital (QLD)","Dr Adam Coltzau","Dir. Medical Services","adam.coltzau@health.qld.gov.au","High"],
+["QLD","Sunshine Coast HHS","Medical Admin","Recruitment","sc-medicaladmin@health.qld.gov.au","Med"],
+["QLD","Torres & Cape HHS","Medical Recruitment","Recruitment","tchhs-medicalrecruitment@health.qld.gov.au","High"],
+["QLD","Cooktown Hospital","Dr Natasha Coventry","Dir. Medical Services","tchhs-dms-east@health.qld.gov.au","High"],
+["QLD","Townsville HHS","Medical Workforce","Recruitment","TSV-Medworkforce@health.qld.gov.au","High"],
+["QLD","Ingham Health Service","Dr Selina Porter","Medical Superintendent","selina.porter@health.qld.gov.au","High"],
+["QLD","West Moreton HHS (Ipswich)","Junior Medical","Medical Workforce","WMJuniorMedical@health.qld.gov.au","Med"],
+["QLD","Wide Bay HHS","Medical Admin","Recruitment","WBHHS-MedicalAdmin@health.qld.gov.au","High"],
+["QLD","Health Workforce QLD (rural)","Caro Finlay / Harleen Gill","Regional Coordinators","hws@healthworkforce.com.au","High"],
+["SA","Barossa Hills Fleurieu LHN","Jen Field","Medical Education Unit","Health.BHFLHNMedicalEducationUnit@sa.gov.au","High"],
+["SA","Barossa Hills Fleurieu LHN","Dr Peter Stuart","Dir. Clinical Training","Peter.Stuart@sa.gov.au","High"],
+["SA","Eyre & Far North LHN","Kaylee Brown","Medical Education Officer","Kaylee.brown@sa.gov.au","High"],
+["SA","Eyre & Far North LHN","Dr Alison Lydeamore","Dir. Clinical Training","Alison.Lydeamore@sa.gov.au","High"],
+["SA","Flinders & Upper North LHN","Ellen Menzies","Medical Education Unit","Health.FUNLHNMedicalEducationUnit@sa.gov.au","High"],
+["SA","Limestone Coast LHN","Mary Harvey","Medical Education Officer","mary.harvey@sa.gov.au","High"],
+["SA","Riverland Mallee Coorong LHN","Tanya Roesler","Medical Education Officer","tanya.roesler@sa.gov.au","High"],
+["SA","Riverland Mallee Coorong LHN","Dr Hamish Eske","Dir. Clinical Training","Hamish.Eske@sa.gov.au","High"],
+["SA","Northern Adelaide LHN","Dr Kate Wislang","Dir. Clinical Training","Kate.Wislang@sa.gov.au","Med"],
+["SA","Northern Adelaide LHN","Jaslyn Cooper","TMO Team Leader","Jaslyn.Cooper@sa.gov.au","Med"],
+["SA","Southern Adelaide LHN","Cameron Wyers","TMO Regional Manager","cameron.wyers@sa.gov.au","Med"],
+["SA","Central Adelaide LHN","RMO Recruitment","Recruitment","Health.CALHNAUCRecruitment@sa.gov.au","Med"],
+["TAS","Royal Hobart Hospital","Marita Eccles","Senior Recruitment Officer","marita.eccles@ths.tas.gov.au","High"],
+["TAS","Royal Hobart Hospital","Shelley Hampson","Senior Recruitment Officer","shelley.hampson@ths.tas.gov.au","High"],
+["TAS","Launceston General Hospital","Rebecca Spencer","Recruitment Officer","rebecca.spencer@health.tas.gov.au","High"],
+["TAS","Mersey / North West Regional","Mel Green","Medical Staffing (Junior Drs)","mel.green@ths.tas.gov.au","High"],
+["TAS","North West Regional Hospital","Sophie Coghlan","Medical Workforce Unit","sophie.coghlan@ths.tas.gov.au","High"],
+["VIC","Alfred Hospital","Medical Workforce","Recruitment","medicalrecruitment@alfred.org.au","Low"],
+["VIC","Austin Health","HMO Recruitment","Medical Workforce Unit","hmorecruitment@austin.org.au","Low"],
+["VIC","Eastern Health","Tracy Waller","Hiring Manager","docsgoeast@easternhealth.org.au","Med"],
+["VIC","Royal Melbourne Hospital","DIT Recruitment","Medical Workforce","ditrecruitment@mh.org.au","Low"],
+["VIC","Mercy Public Hospital","JMS Enquiries","Workforce Manager","JMS-Enquiries@mercy.com.au","Med"],
+["VIC","North East Health Wangaratta","Medical Workforce","Recruitment","MedicalWorkForce@nhw.org.au","High"],
+["VIC","Monash Health","Doctors Recruitment","Medical Workforce","monashdoctors_recruitment@monashhealth.org","Low"],
+["VIC","Northern Health","Doctors Workforce","Recruitment","NorthernDoctorsWorkforce@nh.org.au","Med"],
+["VIC","Peninsula Health","Medical Recruitment","Recruitment","medicalrecruitment@phcn.vic.gov.au","Med"],
+["VIC","St Vincent's Hospital","Junior Medical Staff","Recruitment","JMSRecruitment@svha.org.au","Low"],
+["VIC","Western Health","Medical Workforce Unit","Recruitment","whmwu@wh.org.au","Med"],
+["VIC","Albury Wodonga Health","Sabrine Baker","Medical Workforce Officer","sabrina.baker@awh.org.au","High"],
+["VIC","Bass Coast Health","Medical Workforce","Recruitment","medicalworkforce@basscoasthealth.org.au","High"],
+["VIC","Barwon Health (Geelong)","Medical Workforce Unit","Recruitment","MedicalRecruitment@barwonhealth.org.au","Med"],
+["VIC","Bendigo Health","JMO Recruitment","Medical Workforce","jmorecruitment@bendigohealth.org.au","High"],
+["VIC","Central Gippsland Health","Jacqueline Southall","Medical Workforce Officer","Jacqueline.southall@cghs.com.au","High"],
+["VIC","East Grampians Health","Kim Lane","Medical Workforce","Kim.lane@eghs.net.au","High"],
+["VIC","Goulburn Valley Health","Medical Workforce","Recruitment","medicalworkforce@gvhealth.org.au","High"],
+["VIC","Grampians Health (Ballarat)","Medical Workforce","Recruitment","medwork@gh.org.au","High"],
+["VIC","Latrobe Regional Health","Medical Workforce Unit","Recruitment","medicalworkforceunit@lrh.com.au","High"],
+["VIC","Mildura Base Hospital","Teresa Boylan-Kelly","Workforce Manager","TBoylan-Kelly@mbph.org.au","High"],
+["VIC","Bairnsdale Health Service","Medical Workforce Unit","Recruitment","mwu@brhs.com.au","High"],
+["VIC","West Gippsland Healthcare","Medical Workforce","Recruitment","medical.workforce@wghg.com.au","High"],
+["WA","Royal Perth Hospital","JMO Careers","Recruitment","JMOcareers@health.wa.gov.au","Med"],
+["WA","Fiona Stanley Hospital","Medical Recruitment","Recruitment","FSH.MW@health.wa.gov.au","Med"],
+["WA","Joondalup Health Campus","Kim Box","Medical Admin","boxk@ramsayhealth.com.au","Med"],
+["WA","SJOG Hospital","Junior Doctors","RMO Recruitment","juniordoctors@sjog.org.au","Med"],
+["WA","Rockingham General Hospital","Medical Education","Recruitment","RGH.MedicalEducation@health.wa.gov.au","Med"],
+["WA","Peel Health Campus (Mandurah)","Samantha Larmour","Medical Workforce Officer","Samantha.larmour@health.wa.gov.au","Med"],
+["WA","Sir Charles Gairdner Hospital","RMO Recruitment","Recruitment","SCGH.RMO@health.wa.gov.au","Med"],
+["WA","Royal Perth Bentley Group","RMO Recruitment","Intern/RMO Contracts","RPH.RMO-InternContracts@health.wa.gov.au","Med"],
+["WA","Hollywood Private (Ramsay)","Medical Services","Recruitment","medicalservices.hph@ramsayhealth.com.au","Med"],
+["WA","Albany Health Campus","Kaz Germinaro","Med Admin Coordinator","gs.medadmincoord@health.wa.gov.au","High"],
+["WA","Broome Hospital","Sue Ralph","Medical Education Officer","meo.broome@health.wa.gov.au","High"],
+["WA","Broome Hospital","Dr David Forster","Dir. Clinical Training","David.Forster@health.wa.gov.au","High"],
+["WA","Bunbury Regional (WACHS SW)","Maddison Matthews","Senior Workforce Officer","WACHSSWMedicalRecruitment@health.wa.gov.au","High"],
+["WA","Geraldton Hospital (WACHS Midwest)","Medical Workforce Unit","Recruitment","medicalservices.WACHSMidwest@health.wa.gov.au","High"],
+["WA","Geraldton Hospital","Dr Marg Sturdy","Dir. Medical Services","Marg.Sturdy@health.wa.gov.au","High"],
+["WA","Kalgoorlie Health Campus","Amanda Ryan","Medical Admin Officer","Amanda.Ryan2@health.wa.gov.au","High"],
+["WA","Kalgoorlie Health Campus","Dr Lisa Sorger","Dir. Medical Service","lisa.sorger@health.wa.gov.au","High"],
+];
+const CONTACTS=RAW.map((r,i)=>({id:"c"+i,state:r[0],hospital:r[1],contact:r[2],role:r[3],email:r[4],priority:r[5]}));
+const STATUSES=["Not sent","Sent","Followed up","Replied","Interview","Closed"];
+const STATES=["All","QLD","NSW","VIC","WA","SA","TAS","NT","ACT"];
+const KEY="eoi-tracker-v1", SKEY="eoi-settings-v1", FU=7;
+const SUBJECT="EOI \u2013 RMO Position \u2013 Dr Akshay Shibu (AMC Clinical Passed, PTE 90/90)";
+const GENERIC=/(Recruitment|Workforce|Admin|Unit|Team|Enquiries|Services|Medical|JMO|RMO|Careers|Doctors|Staff|Education)/i;
+
+// ---------- template ----------
+function greetingFor(c){return c.contact.includes("/")||GENERIC.test(c.contact)?"Dear Medical Workforce Team,":"Dear "+c.contact+",";}
+function buildEmail(c){
+  const rural=c.priority==="High"?"\nI am particularly keen to work in a rural or regional setting and am ready to relocate anywhere in "+(c.state==="NT"?"the Northern Territory":c.state)+".\n":"";
+  return greetingFor(c)+`
+
+I am writing to express my interest in current or upcoming RMO positions at `+c.hospital+`. I have passed both the AMC MCQ (2024) and AMC Clinical (2025) examinations, hold current eligibility for provisional AHPRA registration, and scored 90/90 in PTE Academic.
+
+I have over 18 months of post-internship experience, currently as an RMO in a high-volume tertiary Emergency Department (POCUS/E-FAST, airway management, trauma primary surveys), with earlier RMO experience in Neurology including supervised acute stroke thrombolysis pathways. I am ACLS and BLS certified (AHA, 2026) and have completed over 200 CPD hours through clinical workshops in Melbourne.
+`+rural+`
+I am available to commence immediately and would require employer visa sponsorship; I am ready to begin the provisional registration process as soon as a position is confirmed. Three current clinical referees are available, and my CV and AMC results are attached.
+
+I would welcome the opportunity to discuss how I could contribute to your team.
+
+Kind regards,
+Dr Akshay Shibu, MBBS
+AMC 1 & 2 Passed | PTE Academic 90/90
++91 8156919135 | akshayshibu321@gmail.com`;
+}
+
+// ---------- state ----------
+let records={}, settings={apiKey:""};
+try{records=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){records={}}
+try{settings=Object.assign(settings,JSON.parse(localStorage.getItem(SKEY)||"{}"))}catch(e){}
+const rec=id=>records[id]||{status:"Not sent",dateSent:"",notes:"",aiText:""};
+function update(id,patch){records[id]=Object.assign({},rec(id),patch);localStorage.setItem(KEY,JSON.stringify(records));}
+let expanded=null, aiBusy=null;
+const F={q:"",state:"All",status:"All",prio:"All",dueOnly:false};
+
+// ---------- helpers ----------
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const today=()=>new Date().toISOString().slice(0,10);
+const daysSince=iso=>iso?Math.floor((Date.now()-new Date(iso).getTime())/864e5):0;
+const isDue=c=>{const r=rec(c.id);return(r.status==="Sent"||r.status==="Followed up")&&r.dateSent&&daysSince(r.dateSent)>=FU;};
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),1600);}
+async function copyText(text,msg){
+  try{await navigator.clipboard.writeText(text);}
+  catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();}
+  toast(msg||"Copied");
+}
+
+// ---------- AI ----------
+async function personalize(c){
+  if(!settings.apiKey){toast("Add your API key in Settings first");openSettings();return;}
+  aiBusy=c.id;renderList();
+  try{
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":settings.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,messages:[{role:"user",content:
+"Rewrite this expression-of-interest email so it reads as genuinely tailored to the recipient: "+c.contact+", "+c.role+", at "+c.hospital+" ("+c.state+", Australia). The sender is an international medical graduate seeking an RMO position.\n\nRules:\n- Keep every factual claim exactly as written (exams, scores, experience, sponsorship need, availability, referees). Do NOT invent facts, publications, mutual connections, or knowledge of the hospital you cannot be sure of.\n- Add at most 1-2 sentences genuinely specific to this recipient's role or region.\n- Under 200 words. Plain text only. Professional and warm, not flowery.\n- Return ONLY the email body, nothing else.\n\n"+buildEmail(c)}]})});
+    const data=await res.json();
+    if(data.error){toast("API error: "+(data.error.message||data.error.type).slice(0,80));}
+    else{
+      const text=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+      if(text){update(c.id,{aiText:text});toast("Personalized \u2014 read it before sending");}
+      else toast("Empty response \u2014 template kept");
+    }
+  }catch(e){toast("Network/CORS error \u2014 template kept");}
+  aiBusy=null;renderList();
+}
+
+// ---------- export / import ----------
+function download(name,content,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function backup(){
+  const csvEsc=v=>'"'+String(v||"").replace(/"/g,'""')+'"';
+  const csv=["State,Hospital,Contact,Role,Email,Priority,Status,Date sent,Notes"]
+    .concat(CONTACTS.map(c=>{const r=rec(c.id);return[c.state,c.hospital,c.contact,c.role,c.email,c.priority,r.status,r.dateSent,r.notes].map(csvEsc).join(",")})).join("\n");
+  download("EOI-Backup-"+today()+".json",JSON.stringify({records,exported:new Date().toISOString()},null,1),"application/json");
+  download("EOI-Tracker-"+today()+".csv",csv,"text/csv");
+  toast("Backup JSON + CSV downloaded");
+}
+function parseCSV(text){
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else if(ch==='"')q=true;
+    else if(ch===","){row.push(cur);cur="";}
+    else if(ch==="\n"||ch==="\r"){if(cur!==""||row.length){row.push(cur);rows.push(row);row=[];cur="";}}
+    else cur+=ch;}
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+function importFile(kind){
+  const inp=$("#fileInput");inp.value="";
+  inp.onchange=()=>{const f=inp.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=()=>{try{
+      if(kind==="json"){const d=JSON.parse(rd.result);if(d.records){records=d.records;localStorage.setItem(KEY,JSON.stringify(records));toast("Backup restored");}else toast("Not a valid backup file");}
+      else{
+        const rows=parseCSV(rd.result);const head=rows[0].map(h=>h.trim().toLowerCase());
+        const ix=n=>head.indexOf(n);
+        const em=ix("email"),st=ix("status"),dt=ix("date sent"),nt=ix("notes");
+        if(em<0||st<0){toast("CSV format not recognised");return;}
+        let n=0;
+        for(let i=1;i<rows.length;i++){const r=rows[i];if(!r[em])continue;
+          const c=CONTACTS.find(x=>x.email.toLowerCase()===r[em].toLowerCase().trim());
+          if(c){update(c.id,{status:STATUSES.includes(r[st])?r[st]:"Not sent",dateSent:dt>=0?(r[dt]||""):"",notes:nt>=0?(r[nt]||""):""});n++;}}
+        toast("Imported progress for "+n+" contacts");
+      }
+      renderAll();$("#settingsDlg").close();
+    }catch(e){toast("Import failed \u2014 file unreadable");}};
+    rd.readAsText(f);};
+  inp.click();
+}
+
+// ---------- render ----------
+function stats(){
+  const sent=CONTACTS.filter(c=>!["Not sent","Closed"].includes(rec(c.id).status)).length;
+  const replies=CONTACTS.filter(c=>["Replied","Interview"].includes(rec(c.id).status)).length;
+  const due=CONTACTS.filter(isDue).length;
+  const rate=sent?Math.round(replies/sent*100):0;
+  $("#stats").innerHTML=
+    '<div class="stat"><b>'+sent+'</b><span>EOIs sent · of '+CONTACTS.length+'</span></div>'+
+    '<div class="stat"><b style="color:var(--green)">'+replies+'</b><span>Replies · '+rate+'% response</span></div>'+
+    '<button class="stat'+(F.dueOnly?" due-on":"")+'" id="dueBtn"><b style="color:'+(due?"var(--amber)":"inherit")+'">'+due+'</b><span>Follow-ups due · '+(F.dueOnly?"filtering":"tap to filter")+'</span></button>'+
+    '<div class="stat"><b>'+CONTACTS.filter(c=>c.priority==="High").length+'</b><span>High priority · rural/regional</span></div>';
+  $("#dueBtn").onclick=()=>{F.dueOnly=!F.dueOnly;renderAll();};
+}
+function filtered(){
+  return CONTACTS.filter(c=>{
+    const r=rec(c.id);
+    if(F.state!=="All"&&c.state!==F.state)return false;
+    if(F.status!=="All"&&r.status!==F.status)return false;
+    if(F.prio!=="All"&&c.priority!==F.prio)return false;
+    if(F.dueOnly&&!isDue(c))return false;
+    if(F.q){const q=F.q.toLowerCase();if(![c.hospital,c.contact,c.role,c.email].some(f=>f.toLowerCase().includes(q)))return false;}
+    return true;});
+}
+function card(c){
+  const r=rec(c.id),due=isDue(c),open=expanded===c.id;
+  const prioCls=c.priority==="High"?"hi":c.priority==="Med"?"md":"lo";
+  let h='<div class="card'+(due?" due":"")+'" data-id="'+c.id+'">'
+    +'<div class="head" data-act="toggle">'
+    +'<span class="pill s-'+r.status.replace(/ /g,"")+'">'+r.status+'</span>'
+    +'<div class="tags"><span class="hosp">'+esc(c.hospital)+'</span>'
+    +'<span class="tag st">'+c.state+'</span><span class="tag '+prioCls+'">'+c.priority+'</span>'
+    +(due?'<span class="tag duef">Follow up · '+daysSince(r.dateSent)+'d</span>':"")
+    +'</div><div class="who">'+esc(c.contact)+' — '+esc(c.role)+'</div></div>';
+  if(open){
+    h+='<div class="body">'
+      +'<div class="row"><code>'+esc(c.email)+'</code>'
+      +'<button data-act="copyaddr">Copy address</button>'
+      +'<a href="mailto:'+encodeURIComponent(c.email)+'?subject='+encodeURIComponent(SUBJECT)+'"><button>Open email</button></a></div>'
+      +'<div class="row statusbtns">'+STATUSES.map(s=>'<button data-act="status" data-s="'+s+'" class="'+(r.status===s?"on":"")+'">'+s+'</button>').join("")+'</div>'
+      +'<div class="row"><span class="lbl">Last action</span><input type="date" data-act="date" value="'+esc(r.dateSent)+'"></div>'
+      +'<div class="emailbox"><div class="row">'
+      +'<span class="lbl" style="font-weight:600">Email text</span>'
+      +'<button data-act="copysubj">Copy subject</button>'
+      +'<button class="primary" data-act="copybody">Copy email text</button>'
+      +'<button class="ai" data-act="ai"'+(aiBusy===c.id?" disabled":"")+'>'+(aiBusy===c.id?"Writing…":"AI-personalize")+'</button>'
+      +(r.aiText?'<button data-act="reset">Reset to template</button>':"")
+      +'</div>'
+      +'<textarea data-act="body" rows="11">'+esc(r.aiText||buildEmail(c))+'</textarea>'
+      +'<div class="hint '+(r.aiText?"saved":"")+'">'+(r.aiText?"Edited / AI version saved for this contact — read every word before sending; it goes out under your name.":"Auto-filled template. Any edit is saved for this contact only.")+'</div></div>'
+      +'<textarea data-act="notes" rows="2" placeholder="Notes — who replied, what they said, next step…">'+esc(r.notes)+'</textarea>'
+      +'</div>';
+  }
+  return h+'</div>';
+}
+function renderList(){
+  const items=filtered();
+  $("#count").textContent=items.length+" shown";
+  $("#list").innerHTML=items.length?items.map(card).join(""):'<div class="empty">No contacts match these filters.</div>';
+}
+function renderAll(){stats();renderList();}
+
+// ---------- events ----------
+$("#list").addEventListener("click",e=>{
+  const actEl=e.target.closest("[data-act]");if(!actEl)return;
+  const cardEl=e.target.closest(".card");if(!cardEl)return;
+  const id=cardEl.dataset.id,c=CONTACTS.find(x=>x.id===id),act=actEl.dataset.act;
+  if(act==="toggle"){expanded=expanded===id?null:id;renderList();}
+  else if(act==="copyaddr")copyText(c.email,"Address copied");
+  else if(act==="copysubj")copyText(SUBJECT,"Subject copied");
+  else if(act==="copybody")copyText(rec(id).aiText||buildEmail(c),"Email text copied — paste into Gmail");
+  else if(act==="ai")personalize(c);
+  else if(act==="reset"){update(id,{aiText:""});renderList();}
+  else if(act==="status"){
+    const s=actEl.dataset.s,r=rec(id),patch={status:s};
+    if(s==="Sent"&&!r.dateSent)patch.dateSent=today();
+    if(s==="Followed up")patch.dateSent=today();
+    update(id,patch);renderAll();
+  }
+});
+$("#list").addEventListener("input",e=>{
+  const el=e.target,cardEl=el.closest(".card");if(!cardEl)return;
+  const id=cardEl.dataset.id,act=el.dataset.act;
+  if(act==="notes")update(id,{notes:el.value});
+  else if(act==="body")update(id,{aiText:el.value});
+  else if(act==="date"){update(id,{dateSent:el.value});stats();}
+});
+["q","fState","fStatus","fPrio"].forEach(idName=>{
+  $("#"+idName).addEventListener(idName==="q"?"input":"change",e=>{
+    if(idName==="q")F.q=e.target.value;
+    if(idName==="fState")F.state=e.target.value;
+    if(idName==="fStatus")F.status=e.target.value;
+    if(idName==="fPrio")F.prio=e.target.value;
+    renderList();
+  });
+});
+function openSettings(){$("#apiKeyInput").value=settings.apiKey;$("#settingsDlg").showModal();}
+$("#settingsBtn").onclick=openSettings;
+$("#closeDlg").onclick=()=>$("#settingsDlg").close();
+$("#saveDlg").onclick=()=>{settings.apiKey=$("#apiKeyInput").value.trim();localStorage.setItem(SKEY,JSON.stringify(settings));$("#settingsDlg").close();toast("Settings saved");};
+$("#importJsonBtn").onclick=()=>importFile("json");
+$("#importCsvBtn").onclick=()=>importFile("csv");
+$("#backupBtn").onclick=backup;
+
+// ---------- init ----------
+$("#total").textContent=CONTACTS.length;
+$("#fState").innerHTML=STATES.map(s=>'<option>'+s+'</option>').join("");
+$("#fStatus").innerHTML='<option>All</option>'+STATUSES.map(s=>'<option>'+s+'</option>').join("");
+const svgIcon="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#0f172a"/><text x="50" y="66" font-size="44" font-family="sans-serif" font-weight="bold" fill="#fff" text-anchor="middle">Rx</text></svg>');
+$("#manifest").href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify({
+  name:"EOI Tracker",short_name:"EOI Tracker",start_url:".",display:"standalone",
+  background_color:"#f6f7f9",theme_color:"#0f172a",
+  icons:[{src:svgIcon,sizes:"192x192 512x512",type:"image/svg+xml",purpose:"any"}]
+}));
+renderAll();
+</script>
+</body>
+</html>
